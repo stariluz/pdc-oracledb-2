@@ -7,11 +7,13 @@ CREATE OR REPLACE PROCEDURE insertar_sucursal(
 ) IS
 BEGIN
     IF p_region = 'A' THEN
-        INSERT INTO sucursal@a_link (idsucursal, nombresucursal, ciudadsucursal, activos, region)
+        DBMS_OUTPUT.PUT_LINE('Guardado en la region ' || p_region);
+        INSERT INTO sucursal_a (idsucursal, nombresucursal, ciudadsucursal, activos, region)
         VALUES (p_idsucursal, p_nombresucursal, p_ciudadsucursal, p_activos, p_region);
 
     ELSIF p_region = 'B' THEN
-        INSERT INTO sucursal@b_link (idsucursal, nombresucursal, ciudadsucursal, activos, region)
+        DBMS_OUTPUT.PUT_LINE('Guardado en la region ' || p_region);
+        INSERT INTO sucursal_b (idsucursal, nombresucursal, ciudadsucursal, activos, region)
         VALUES (p_idsucursal, p_nombresucursal, p_ciudadsucursal, p_activos, p_region);
 
     ELSE
@@ -20,3 +22,4 @@ BEGIN
 
     COMMIT;
 END;
+/

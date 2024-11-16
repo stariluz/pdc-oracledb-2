@@ -6,7 +6,7 @@ CREATE DATABASE LINK a_link
 USING '(DESCRIPTION =
          (ADDRESS =
             (PROTOCOL = TCP)
-            (HOST = 172.19.0.3)
+            (HOST = 172.19.0.2)
             (PORT = 1521)
          )
          (CONNECT_DATA =
@@ -26,7 +26,7 @@ CREATE DATABASE LINK b_link
 USING '(DESCRIPTION =
          (ADDRESS =
             (PROTOCOL = TCP)
-            (HOST = 172.19.0.2)
+            (HOST = 172.19.0.3)
             (PORT = 1521)
          )
          (CONNECT_DATA =

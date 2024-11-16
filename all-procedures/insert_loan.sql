@@ -7,15 +7,20 @@ CREATE OR REPLACE PROCEDURE insertar_prestamo(
 BEGIN
     SELECT region
     INTO v_region
-    FROM sucursal
+    FROM global_sucursal
     WHERE idsucursal = p_idsucursal;
+    
+    DBMS_OUTPUT.PUT_LINE('ID sucursal: ' || p_idsucursal);
+    DBMS_OUTPUT.PUT_LINE('Region: ' || v_region);
 
     IF v_region = 'A' THEN
-        INSERT INTO prestamo@a_link (noprestamo, idsucursal, cantidad)
+        DBMS_OUTPUT.PUT_LINE('Guardado en la region ' || v_region);
+        INSERT INTO prestamo_a (noprestamo, idsucursal, cantidad)
         VALUES (p_noprestamo, p_idsucursal, p_cantidad);
 
     ELSIF v_region = 'B' THEN
-        INSERT INTO prestamo@b_link (noprestamo, idsucursal, cantidad)
+        DBMS_OUTPUT.PUT_LINE('Guardado en la region ' || v_region);
+        INSERT INTO prestamo_b (noprestamo, idsucursal, cantidad)
         VALUES (p_noprestamo, p_idsucursal, p_cantidad);
 
     ELSE
@@ -24,3 +29,4 @@ BEGIN
 
     COMMIT;
 END;
+/
