@@ -24,9 +24,6 @@ docker network create bank-network
 
 #### 2. Descargar imagen
 ```sh
-docker pull container-registry.oracle.com/database/free:latest
-```
-```sh
 docker pull container-registry.oracle.com/database/express:21.3.0-xe
 ```
 ### 3. Crear contenedores
@@ -36,17 +33,17 @@ docker stop bnk-branch-A-odb
 docker rm bnk-branch-A-odb
 docker run -dti --name bnk-branch-A-odb \
 --network bank-network \
--p 1524:1521 \
+-p 1521:1521 \
 --env-file .env \
-container-registry.oracle.com/database/free:latest
+container-registry.oracle.com/database/express:21.3.0-xe
 
 docker stop bnk-branch-B-odb
 docker rm bnk-branch-B-odb
 docker run -dti --name bnk-branch-B-odb \
 --network bank-network \
--p 1525:1521 \
+-p 1522:1521 \
 --env-file .env \
-container-registry.oracle.com/database/free:latest
+container-registry.oracle.com/database/express:21.3.0-xe
 ```
 
 ### 4. Obtener IP Address de los contenedores

@@ -1,5 +1,5 @@
 define db_password = 'my_pw_is_very_safe_yipi_1';
-DROP DATABASE LINK IF EXISTS a_link;
+DROP DATABASE LINK a_link;
 
 CREATE DATABASE LINK a_link
    CONNECT TO system IDENTIFIED BY &db_password
@@ -10,7 +10,7 @@ USING '(DESCRIPTION =
             (PORT = 1521)
          )
          (CONNECT_DATA =
-            (SERVICE_NAME = FREE)
+            (SERVICE_NAME = XE)
          )
       )';
 
@@ -19,7 +19,7 @@ SELECT *
   FROM dual@a_link;
 
 
-DROP DATABASE LINK IF EXISTS b_link;
+DROP DATABASE LINK b_link;
 
 CREATE DATABASE LINK b_link
    CONNECT TO system IDENTIFIED BY &db_password
@@ -30,7 +30,7 @@ USING '(DESCRIPTION =
             (PORT = 1521)
          )
          (CONNECT_DATA =
-            (SERVICE_NAME = FREE)
+            (SERVICE_NAME = XE)
          )
       )';
 
