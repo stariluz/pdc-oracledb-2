@@ -22,9 +22,10 @@ El proyecto supone un banco con diversas sucursales.
 docker network create bank-network
 ```
 
-#### 2. Descargar imagen
+#### 2. Descargar imagenes
 ```sh
 docker pull container-registry.oracle.com/database/express:21.3.0-xe
+docker pull postgres
 ```
 ### 3. Crear contenedores
 
@@ -43,7 +44,164 @@ docker run -dti --name bnk-branch-B-odb \
 --network bank-network \
 -p 1522:1521 \
 --env-file .env \
-container-registry.oracle.com/database/express:21.3.0-xe
+postgres
+
+docker stop bnk-branch-B-odb
+docker rm bnk-branch-B-odb
+docker run -dti --name bnk-branch-B-odb \
+--network bank-network \
+-p 5432:5432 \
+--env-file .env postgres
+
+```
+```sh
+docker exec -ti bnk-branch-B-odb psql --username=postgres -W
+CREATE DATABASE bank;
+```
+#### postgres container
+```sh
+docker exec -ti bnk-branch-B-odb sh
+echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
+echo "host    all    all    172.19.0.2/16    md5" >> /var/lib/postgresql/data/pg_hba.conf
+cat /var/lib/postgresql/data/pg_hba.conf
+
+su postgres
+pg_ctl reload
+exit
+```
+
+#### oracledb container
+```sh
+docker exec -ti bnk-branch-A-odb sh
+yum install -y unixODBC postgresql-odbc
+
+echo "[bankpostgres]
+Description     = Bank Branch B
+Driver          = /usr/lib64/psqlodbc.so
+Servername      = 172.19.0.3
+Port            = 5432
+Database        = bank
+Username        = postgres
+Password        = my_pw_is_very_safe_yipi_1
+[default]
+Driver          = liboplodbcS.so.2
+" > /etc/odbc.ini
+
+lsnrctl stop
+lsnrctl start
+
+touch /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
+echo "# HS parameters that are needed for the Database Gateway for ODBC
+
+#
+# HS init parameters
+#
+HS_FDS_CONNECT_INFO = bankpostgres
+HS_FDS_TRACE_LEVEL = on
+HS_FDS_SHAREABLE_NAME = /usr/lib64/psqlodbc.so
+
+#
+# ODBC specific environment variables
+#
+set ODBCINI=/etc/odbc.ini
+
+#
+# Environment variables required for the non-Oracle system
+#" > /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
+
+echo "# listener.ora Network Configuration File:
+
+SID_LIST_LISTENER =
+  (SID_LIST =
+    (SID_DESC =
+      (SID_NAME = PLSExtProc)
+      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
+      (PROGRAM = extproc)
+    )
+    (SID_DESC =
+      (SID_NAME = bankpostgres)
+      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
+      (ENV="LD_LIBRARY_PATH=/opt/oracle/product/21c/dbhomeXE/lib:/usr/lib")
+      (PROGRAM = dg4odbc)
+    )
+  )
+
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC_FOR_XE))
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
+    )
+  )
+
+DEFAULT_SERVICE_LISTENER = (XE)" > /opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
+
+lsnrctl status listener
+lsnrctl reload listener
+lsnrctl status listener
+
+echo "# tnsnames.ora Network Configuration File:
+
+XE =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = XE)
+    )
+  )
+
+LISTENER_XE =
+  (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
+
+XEPDB1 =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = XEPDB1)
+    )
+  )
+
+EXTPROC_CONNECTION_DATA =
+  (DESCRIPTION =
+     (ADDRESS_LIST =
+       (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC_FOR_XE))
+     )
+     (CONNECT_DATA =
+       (SID = PLSExtProc)
+       (PRESENTATION = RO)
+     )
+  )
+  
+bankpostgres =
+  (DESCRIPTION =
+     (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.0.2)(PORT=1521))
+     (CONNECT_DATA =
+       (SERVER = DEDICATED)
+       (SID = bankpostgres)
+     )
+     (HS=OK)
+  )
+" > /opt/oracle/homes/OraDBHome21cXE/network/admin/tnsnames.ora
+```
+```sh
+find / -name initbankpostgres.ora
+find / -name listener.ora
+find / -name odbc.ini
+find / -name psqlodbc.so
+find / -name initdg4odbc.ora
+find / -name dg4odbc
+find / -name tnsnames.ora
+```
+```sh
+/opt/oracle/product/21c/dbhomeXE/hs/admin/initdg4odbc.ora
+/opt/oracle/oradata/dbconfig/XE/listener.ora
+/opt/oracle/product/21c/dbhomeXE/network/admin/samples/listener.ora
+/opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
+/opt/oracle/oradata/dbconfig/XE/tnsnames.ora
+/opt/oracle/product/21c/dbhomeXE/network/admin/samples/tnsnames.ora
+/opt/oracle/homes/OraDBHome21cXE/network/admin/tnsnames.ora
 ```
 
 ### 4. Obtener IP Address de los contenedores
