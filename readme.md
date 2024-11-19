@@ -42,14 +42,6 @@ docker stop bnk-branch-B-odb
 docker rm bnk-branch-B-odb
 docker run -dti --name bnk-branch-B-odb \
 --network bank-network \
--p 1522:1521 \
---env-file .env \
-postgres
-
-docker stop bnk-branch-B-odb
-docker rm bnk-branch-B-odb
-docker run -dti --name bnk-branch-B-odb \
---network bank-network \
 -p 5432:5432 \
 --env-file .env postgres
 
