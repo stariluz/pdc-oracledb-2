@@ -14,6 +14,7 @@ El proyecto supone un banco con diversas sucursales.
   ```sh
   # Password del usuario system de la base de datos a crear
   ORACLE_PWD=este_es_el_password_UwU
+  POSTGRES_PASSWORD=este_es_el_password_UwU
   ```
 
 ### 1. Crear red
