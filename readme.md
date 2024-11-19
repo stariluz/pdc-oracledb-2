@@ -28,6 +28,7 @@ docker network create bank-network
 docker pull container-registry.oracle.com/database/express:21.3.0-xe
 docker pull postgres
 ```
+
 ### 3. Crear contenedores
 
 ```sh
@@ -48,64 +49,83 @@ docker run -dti --name bnk-branch-B-odb \
 
 ```
 
-#### postgres container
+### 4. Obtener IP Address de los contenedores
+Al ejecutar
 
 ```sh
-docker exec -ti bnk-branch-B-odb psql --username=postgres -W
-CREATE DATABASE bank;
-exit
+docker network inspect bank-network
 ```
-```sh
-docker exec -ti bnk-branch-B-odb sh
-echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
-echo "host    all    all    172.19.0.2/16    md5" >> /var/lib/postgresql/data/pg_hba.conf
-cat /var/lib/postgresql/data/pg_hba.conf
 
-su postgres
-pg_ctl reload
-exit
+Se obtiene la respuesta de la red con las ips que asignó a sus contenedores.
+
+```json
+[
+    {
+        "Name": "bank-network",
+        // ...
+        "Containers": {
+            "5134958dd00c79c0c0c7afd21bcddd19562bfe8a422307c664f91fcb2981575e": {
+                "Name": "bnk-branch-B-odb",
+                // ...
+                "IPv4Address": "172.19.0.3/16",
+                // ...
+            },
+            "6c7a480c2f6d0cfc471a027e842c0cfeee9a1d8c0f218d2f60ed13b6575e1aff": {
+                "Name": "bnk-branch-A-odb",
+                // ...
+                "IPv4Address": "172.19.0.2/16",
+                // ...
+            }
+        },
+    }
+]
 ```
+
+Estas IPs nos ayudarán en seguida para crear los database links.
+
+
+### 5. Configurar contenedores
 
 #### oracledb container
+
+Los comandos se ejecutarán en la consola del contenedor de oracledb
 ```sh
 docker exec -ti bnk-branch-A-odb sh
+```
+Habiendo entrado ya podemos ejecutar los comandos.
+```sh
 su -
-yum install -y unixODBC postgresql-odbc
-
+yum install -y postgresql-odbc
+```
+```sh
 echo "[bankpostgres]
 Description     = Bank Branch B
 Driver          = /usr/lib64/psqlodbc.so
 Servername      = 172.19.0.3
 Port            = 5432
 Database        = bank
-Username        = postgres
-Password        = my_pw_is_very_safe_yipi_1
+Username        = postgres # Usuario por default
+Password        = my_pw_is_very_safe_yipi_1 # Tu contraseña
 [default]
-Driver          = liboplodbcS.so.2
+Driver          = /usr/lib64/liboplodbcS.so.2
 " > /etc/odbc.ini
-
-lsnrctl stop
-lsnrctl start
-
+```
+```sh
 touch /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
 echo "# HS parameters that are needed for the Database Gateway for ODBC
 
-#
 # HS init parameters
-#
 HS_FDS_CONNECT_INFO = bankpostgres
 HS_FDS_TRACE_LEVEL = on
 HS_FDS_SHAREABLE_NAME = /usr/lib64/psqlodbc.so
 
-#
 # ODBC specific environment variables
-#
 set ODBCINI=/etc/odbc.ini
 
-#
 # Environment variables required for the non-Oracle system
 #" > /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
-
+```
+```sh
 echo "# listener.ora Network Configuration File:
 
 SID_LIST_LISTENER =
@@ -132,11 +152,18 @@ LISTENER =
   )
 
 DEFAULT_SERVICE_LISTENER = (XE)" > /opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
-
+```
+```sh
+# Si estos comandos no te funcionan, es probable que debas
+# ejecutar exit primero, cuando vuelvas a ver en la
+# terminal que estas en las consola sh (aun dentro
+# del contenedor) entonces ejecutalos. Si no te deja
+# reportalo a @stariluz
 lsnrctl status listener
 lsnrctl reload listener
 lsnrctl status listener
-
+```
+```sh
 echo "# tnsnames.ora Network Configuration File:
 
 XE =
@@ -173,15 +200,29 @@ EXTPROC_CONNECTION_DATA =
   
 bankpostgres =
   (DESCRIPTION =
-     (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.0.2)(PORT=1521))
+     (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.0.2)(PORT=1521)) # Own OracleDB container host and port is the port of the container side, usually doesn't change.
      (CONNECT_DATA =
        (SERVER = DEDICATED)
        (SID = bankpostgres)
      )
      (HS=OK)
   )
+
 " > /opt/oracle/homes/OraDBHome21cXE/network/admin/tnsnames.ora
 ```
+
+#### Comandos para encontrar archivos
+
+> [!IMPORTANT]
+> Los comandos de arriba, no importan desde que carpeta
+> los ejecutes, funcionarán. Los impedimentos pueden ser
+> de permisos. Si no funcionan normal, cambia de permisos
+> entre `su -` o `su - oracle`.
+
+Estos son comandos que me ayudaron a encontrar los archivos que debía modificar, o las rutas que tenía
+que utilizar dentro de los archivos que se estan
+sobreescribiendo o modificando.
+
 ```sh
 find / -name initbankpostgres.ora
 find / -name listener.ora
@@ -191,160 +232,104 @@ find / -name initdg4odbc.ora
 find / -name dg4odbc
 find / -name tnsnames.ora
 ```
+
+Estos son los archivos que en mi caso tuve que modificar.
+Si en algun caso te dice que las carpetas no existen,
+tendras que ejecutar los find para dar con los archivos
+en tu caso.
+
 ```sh
 /opt/oracle/product/21c/dbhomeXE/hs/admin/initdg4odbc.ora
-/opt/oracle/oradata/dbconfig/XE/listener.ora
-/opt/oracle/product/21c/dbhomeXE/network/admin/samples/listener.ora
 /opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
-/opt/oracle/oradata/dbconfig/XE/tnsnames.ora
-/opt/oracle/product/21c/dbhomeXE/network/admin/samples/tnsnames.ora
 /opt/oracle/homes/OraDBHome21cXE/network/admin/tnsnames.ora
 ```
 
-### 4. Obtener IP Address de los contenedores
+Hay archivos de nombres iguales, pero algunos son ejemplos,
+y otros creo que los maneja oracle.
 
-Al ejecutar
+> [!NOTE]
+> En este punto ya puedes crear el db link.
+> no obstante no funcionará aún. Puedes esperar a configurar el contenedor de postgres.
 
+#### postgres container
+
+Primero se crea la base de datos con la que se hara enlace.
 ```sh
-docker network inspect bank-network
+docker exec -ti bnk-branch-B-odb psql --username=postgres -W # Entonces escribe la contraseña
+CREATE DATABASE bank;
+exit
+```
+Ahora si, podemos configurarlo desde la consola del contenedor de postgres.
+```sh
+docker exec -ti bnk-branch-B-odb sh
+```
+Estando dentro, ejecutaremos los comandos.
+```sh
+cat /var/lib/postgresql/data/pg_hba.conf
+```
+Copia la salida que te dio cat, y agregala a un archivo auxiliar en vscode.
+```sh
+# ...
+
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# "local" is for Unix domain socket connections only
+local   all             all                                     trust
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            trust
+# IPv6 local connections:
+host    all             all             ::1/128                 trust
+# Allow replication connections from localhost, by a user with the
+# replication privilege.
+local   replication     all                                     trust
+host    replication     all             127.0.0.1/32            trust
+host    replication     all             ::1/128                 trust
+
+host all all all scram-sha-256
+```
+Tendrás que modificar 2 cosas.
+1. Primero agrega el server de oracledb en `# IPv4 local connections`
+  ```sh
+  # ...
+  # IPv4 local connections: 
+  host    all             all             127.0.0.1/32            trust
+  host    all             all             172.19.0.2/32           trust # Mi server de oracledb
+  # IPv6 local connections:
+  # ...
+  ```
+2. Cambia todos los `"` por `\"`. Puedes hacerlo con la herramienta find and replace all.
+
+Ahora sí, copia el texto, y lo pegas en el siguiente comando en medio de las comillas dobles `""`.
+```sh
+echo "TEXTO" > /var/lib/postgresql/data/pg_hba.conf
+```
+Ahora para comprobar
+```sh
+cat /var/lib/postgresql/data/pg_hba.conf
+```
+Si está tu IP de oracle en donde la colocaste, entonces está bien.
+Por último
+```sh
+su postgres
+pg_ctl reload
+exit
 ```
 
-Se obtiene la respuesta de la red con las ips que asignó a sus contenedores.
+### 5. Conexión desde un cliente de bases de datos
 
-```json
-[
-    {
-        "Name": "bank-network",
-        // ...
-        "Containers": {
-            "5134958dd00c79c0c0c7afd21bcddd19562bfe8a422307c664f91fcb2981575e": {
-                "Name": "bnk-branch-B-odb",
-                // ...
-                "IPv4Address": "172.19.0.3/16",
-                // ...
-            },
-            "6c7a480c2f6d0cfc471a027e842c0cfeee9a1d8c0f218d2f60ed13b6575e1aff": {
-                "Name": "bnk-branch-A-odb",
-                // ...
-                "IPv4Address": "172.19.0.2/16",
-                // ...
-            }
-        },
-    }
-]
-```
+Hasta ahora, solo requerimos el cliente para oracledb.
+Obviaremos la configuración de la conexión.
 
-Estas IPs nos ayudarán en seguida para crear los database links.
+### 6. Comprobar funcionamiento
 
-### 5. Conexiones desde un cliente de bases de datos
+Ejecuta el archivo de `odb-db-link.sql` si funciona, significa que ya esta la conexión y el resto de
+actividades hay que replantearlas para que funcionen tambien en el servidor de posgres.
 
-> [!TIP]
-> Puedes usar `sqlplus` desde la consola del contenedor si así deseas.
-> Para ejecutarlo deberás hacer lo siguiente:
-> `docker exec -ti chihuahua sh`
-> Dentro de la consola del contenedor puedes ejecutar:
-> `sqlplus`
-> Ahora puedes ejecutar cualquier sentencia de sql.
-
-Necesitas un cliente para visualizar los datos de la oracle database.
-
-En este caso se utilizó la [Oracle SQL Developer Extension for VSCode](https://marketplace.visualstudio.com/items?itemName=Oracle.sql-developer).
-
-Seleccionas el ícono de la extensión:
-![Imagen 1](img/image-1.png)
-
-Una conexión se realizaría de la siguiente manera:
-![Imagen 2](img/image-2.png)
-
-Llenas los datos, recordando cambiar el nombre de la conexión y el puerto del contenedor.
-![Imagen 3](img/image-3.png)
-
-Y listo, ya puedes usarlo como un cliente de sql. Recuerda crear una conexión para
-cada contenedor.
-
-### 6. Crear database links
-
-> [!IMPORTANT]
-> Los scripts aquí mencionados están en la carpeta [scripts](./scripts/).
-> Son todos aquellos con la terminación *-db-links.sql
-
-Para conectar `chihuahua-odb` a las otras bases de datos, ejecuta el script `chihuahua-db-links.sql` o:
-```sql
-drop database link if exists chihuahua_juarez;
-create database link chihuahua_juarez
-   connect to system identified by my_pw_is_very_safe_yipi_1
-using '(DESCRIPTION =
-         (ADDRESS=
-            (PROTOCOL = TCP)
-            (HOST = 172.18.0.3)
-            (PORT = 1521)
-         )
-         (CONNECT_DATA =
-            (SERVICE_NAME = FREE)
-         )
-      )';
-select *
-  from dual@chihuahua_juarez;
-
-
-drop database link if exists chihuahua_cuauhtemoc;
-create database link chihuahua_cuauhtemoc
-   connect to system identified by my_pw_is_very_safe_yipi_1
-using '(DESCRIPTION =
-         (ADDRESS=
-            (PROTOCOL = TCP)
-            (HOST = 172.18.0.4)
-            (PORT = 1521)
-         )
-         (CONNECT_DATA =
-            (SERVICE_NAME = FREE)
-         )
-      )';
-select *
-  from dual@chihuahua_cuauhtemoc;
-```
-
-Si el último resultado regresa lo siguiente:
-![Imagen 4](./img/image-4.png)
-
-Significa que funcionó.
-
-### 7. Crear tablas de prueba
-
-> [!IMPORTANT]
-> Los scripts aquí mencionados están en la carpeta [scripts](./scripts/).
-> Son todos aquellos con la terminación *-init.sql
-
-Ejecuta los scripts de creación de tablas para cada una de las conexiones según correspondan.
-
-### 8. Insertar datos de prueba
-
-> [!IMPORTANT]
-> Los scripts aquí mencionados están en la carpeta [scripts](./scripts/).
-> Son todos aquellos con la terminación *-insert.sql
-
-Ejecuta los scripts de inserción de datos para cada una de las conexiones según correspondan.
-
-### 9. Probar funcionamiento de las conexiones
-
-Si seguíste los pasos explicados en este tutorial hasta este punto, ya podrás obtendrer los datos de los demás contenedores, desde la base de datos de la conexión actual.
-
-Ejecutando esto desde `chihuahua-odb`:
-
-```sql
-SELECT * FROM apple_orchard_sales
-UNION
-SELECT * FROM apple_orchard_sales@chihuahua_juarez
-UNION
-SELECT * FROM apple_orchard_sales@chihuahua_cuauhtemoc;
-```
-
-Obtenemos las datos combinados de los 3 contenedores.
-
-### Otra documentación
+### Documentación
 
 - Descargar imagen de Oracle Database Free [https://www.oracle.com/database/free/get-started/](https://www.oracle.com/database/free/get-started/)
-- Parámetros del contenedor [https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run](https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run)
+- Parámetros de la imagen [https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run](https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run)
+- Video para conexión con posgres [https://www.youtube.com/watch?v=9nNtlcYyG3Y](https://www.youtube.com/watch?v=9nNtlcYyG3Y)
 
 ### [Licencia (GNU General Public License)](./license.md)
 
