@@ -47,11 +47,14 @@ docker run -dti --name bnk-branch-B-odb \
 --env-file .env postgres
 
 ```
+
+#### postgres container
+
 ```sh
 docker exec -ti bnk-branch-B-odb psql --username=postgres -W
 CREATE DATABASE bank;
+exit
 ```
-#### postgres container
 ```sh
 docker exec -ti bnk-branch-B-odb sh
 echo "listen_addresses = '*'" >> /var/lib/postgresql/data/postgresql.conf
@@ -66,6 +69,7 @@ exit
 #### oracledb container
 ```sh
 docker exec -ti bnk-branch-A-odb sh
+su -
 yum install -y unixODBC postgresql-odbc
 
 echo "[bankpostgres]
