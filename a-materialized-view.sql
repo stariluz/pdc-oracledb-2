@@ -7,4 +7,4 @@ AS
      FROM sucursal
    UNION ALL
    SELECT *
-     FROM sucursal@b_link;
+     FROM "sucursal"@b_link;

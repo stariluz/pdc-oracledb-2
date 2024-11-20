@@ -17,19 +17,19 @@ El proyecto supone un banco con diversas sucursales.
   POSTGRES_PASSWORD=este_es_el_password_UwU
   ```
 
-### 1. Crear red
+## 1. Crear red
 
 ```sh
 docker network create bank-network
 ```
 
-#### 2. Descargar imagenes
+### 2. Descargar imagenes
 ```sh
 docker pull container-registry.oracle.com/database/express:21.3.0-xe
 docker pull postgres
 ```
 
-### 3. Crear contenedores
+## 3. Crear contenedores
 
 ```sh
 docker stop bnk-branch-A-odb
@@ -49,7 +49,7 @@ docker run -dti --name bnk-branch-B-odb \
 
 ```
 
-### 4. Obtener IP Address de los contenedores
+## 4. Obtener IP Address de los contenedores
 Al ejecutar
 
 ```sh
@@ -84,9 +84,9 @@ Se obtiene la respuesta de la red con las ips que asignó a sus contenedores.
 Estas IPs nos ayudarán en seguida para crear los database links.
 
 
-### 5. Configurar contenedores
+##  5. Configurar contenedores
 
-#### oracledb container
+### oracledb container
 
 Los comandos se ejecutarán en la consola del contenedor de oracledb
 ```sh
@@ -99,69 +99,59 @@ yum install -y postgresql-odbc
 ```
 ```sh
 echo "[bankpostgres]
-Description     = Bank Branch B
-Driver          = /usr/lib64/psqlodbc.so
-Servername      = 172.19.0.3
-Port            = 5432
-Database        = bank
-Username        = postgres # Usuario por default
-Password        = my_pw_is_very_safe_yipi_1 # Tu contraseña
-[default]
-Driver          = /usr/lib64/liboplodbcS.so.2
+Description          = Bank Branch B
+Driver               = PostgreSQL
+Debug                = 1
+CommLog              = 1
+ReadOnly             = no
+TextAsLongVarchar    = Yes
+TraceFile            = /tmp/sql.log
+UseServerSidePrepare = 1
+Debug                = 1
+Trace                = yes
+CommLog              = 1
+UseDeclareFetch      = 0
+Servername           = 172.19.0.3
+Port                 = 5432
+Username             = postgres
+Password             = my_pw_is_very_safe_yipi_1
+Database             = bank
+dbms_name            = PostgreSQL
 " > /etc/odbc.ini
 ```
 ```sh
-touch /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
-echo "# HS parameters that are needed for the Database Gateway for ODBC
+echo "# Example driver definitions
 
-# HS init parameters
-HS_FDS_CONNECT_INFO = bankpostgres
-HS_FDS_TRACE_LEVEL = on
-HS_FDS_SHAREABLE_NAME = /usr/lib64/psqlodbc.so
+# Driver from the postgresql-odbc package
+# Setup from the unixODBC package
+[PostgreSQL]
+Description     = ODBC for PostgreSQL
+Driver          = /usr/lib/psqlodbcw.so
+Setup           = /usr/lib/libodbcpsqlS.so
+Driver64        = /usr/lib64/psqlodbcw.so
+Setup64         = /usr/lib64/libodbcpsqlS.so
+FileUsage       = 1
 
-# ODBC specific environment variables
-set ODBCINI=/etc/odbc.ini
-
-# Environment variables required for the non-Oracle system
-#" > /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
+# Driver from the mysql-connector-odbc package
+# Setup from the unixODBC package
+[MySQL]
+Description     = ODBC for MySQL
+Driver          = /usr/lib/libmyodbc5.so
+Setup           = /usr/lib/libodbcmyS.so
+Driver64        = /usr/lib64/libmyodbc5.so
+Setup64         = /usr/lib64/libodbcmyS.so
+FileUsage       = 1
+" > /etc/odbcinst.ini
 ```
 ```sh
-echo "# listener.ora Network Configuration File:
-
-SID_LIST_LISTENER =
-  (SID_LIST =
-    (SID_DESC =
-      (SID_NAME = PLSExtProc)
-      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
-      (PROGRAM = extproc)
-    )
-    (SID_DESC =
-      (SID_NAME = bankpostgres)
-      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
-      (ENV="LD_LIBRARY_PATH=/opt/oracle/product/21c/dbhomeXE/lib:/usr/lib")
-      (PROGRAM = dg4odbc)
-    )
-  )
-
-LISTENER =
-  (DESCRIPTION_LIST =
-    (DESCRIPTION =
-      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC_FOR_XE))
-      (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
-    )
-  )
-
-DEFAULT_SERVICE_LISTENER = (XE)" > /opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
-```
-```sh
-# Si estos comandos no te funcionan, es probable que debas
-# ejecutar exit primero, cuando vuelvas a ver en la
-# terminal que estas en las consola sh (aun dentro
-# del contenedor) entonces ejecutalos. Si no te deja
-# reportalo a @stariluz
-lsnrctl status listener
-lsnrctl reload listener
-lsnrctl status listener
+echo "HS_FDS_CONNECT_INFO = bankpostgres
+HS_FDS_TRACE_LEVEL = 4
+HS_FDS_SQLLEN = 32767
+HS_FDS_SQLCHAR = 2000
+HS_FDS_TRACE_FILE_NAME=/tmp/ora_hs_trace.log
+HS_FDS_SHAREABLE_NAME = /usr/lib64/psqlodbcw.so
+HS_LANGUAGE=AMERICAN_AMERICA.WE8ISO8859P1
+set ODBCINI=/etc/odbc.ini" > /opt/oracle/product/21c/dbhomeXE/hs/admin/initbankpostgres.ora
 ```
 ```sh
 echo "# tnsnames.ora Network Configuration File:
@@ -197,20 +187,53 @@ EXTPROC_CONNECTION_DATA =
        (PRESENTATION = RO)
      )
   )
-  
+
+# Own OracleDB container host and port is the port of the container side, usually doesn't change.
 bankpostgres =
   (DESCRIPTION =
-     (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.0.2)(PORT=1521)) # Own OracleDB container host and port is the port of the container side, usually doesn't change.
-     (CONNECT_DATA =
-       (SERVER = DEDICATED)
-       (SID = bankpostgres)
-     )
+     (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT=1521)) 
+     (CONNECT_DATA = (SID = bankpostgres))
      (HS=OK)
   )
-
 " > /opt/oracle/homes/OraDBHome21cXE/network/admin/tnsnames.ora
 ```
+```sh
+echo "# listener.ora Network Configuration File:
 
+SID_LIST_LISTENER =
+  (SID_LIST =
+    (SID_DESC =
+      (SID_NAME = PLSExtProc)
+      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
+      (PROGRAM = extproc)
+    )
+    (SID_DESC =
+      (SID_NAME = bankpostgres)
+      (ORACLE_HOME = /opt/oracle/product/21c/dbhomeXE)
+      (PROGRAM = dg4odbc)
+    )
+  )
+
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC_FOR_XE))
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 0.0.0.0)(PORT = 1521))
+    )
+  )
+
+DEFAULT_SERVICE_LISTENER = (XE)" > /opt/oracle/homes/OraDBHome21cXE/network/admin/listener.ora
+```
+```sh
+# Si estos comandos no te funcionan, es probable que debas
+# ejecutar exit primero, cuando vuelvas a ver en la
+# terminal que estas en las consola sh (aun dentro
+# del contenedor) entonces ejecutalos. Si no te deja
+# reportalo a @stariluz
+lsnrctl status listener
+lsnrctl reload listener
+lsnrctl status listener
+```
 #### Comandos para encontrar archivos
 
 > [!IMPORTANT]
@@ -251,11 +274,11 @@ y otros creo que los maneja oracle.
 > En este punto ya puedes crear el db link.
 > no obstante no funcionará aún. Puedes esperar a configurar el contenedor de postgres.
 
-#### postgres container
+### postgres container
 
 Primero se crea la base de datos con la que se hara enlace.
 ```sh
-docker exec -ti bnk-branch-B-odb psql --username=postgres -W # Entonces escribe la contraseña
+docker exec -ti bnk-branch-B-odb psql -h 172.19.0.3 --username=postgres -W # Entonces escribe la contraseña
 CREATE DATABASE bank;
 exit
 ```
@@ -323,13 +346,13 @@ Obviaremos la configuración de la conexión.
 ### 6. Comprobar funcionamiento
 
 Ejecuta el archivo de `odb-db-link.sql` si funciona, significa que ya esta la conexión y el resto de
-actividades hay que replantearlas para que funcionen tambien en el servidor de posgres.
+actividades hay que replantearlas para que funcionen tambien en el servidor de postgres.
 
 ### Documentación
 
 - Descargar imagen de Oracle Database Free [https://www.oracle.com/database/free/get-started/](https://www.oracle.com/database/free/get-started/)
 - Parámetros de la imagen [https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run](https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance#how-to-build-and-run)
-- Video para conexión con posgres [https://www.youtube.com/watch?v=9nNtlcYyG3Y](https://www.youtube.com/watch?v=9nNtlcYyG3Y)
+- Video para conexión con postgres [https://www.youtube.com/watch?v=9nNtlcYyG3Y](https://www.youtube.com/watch?v=9nNtlcYyG3Y)
 
 ### [Licencia (GNU General Public License)](./license.md)
 

@@ -7,4 +7,4 @@ AS
      FROM prestamo
    UNION ALL
    SELECT *
-     FROM prestamo@b_link;
+     FROM "prestamo"@b_link;
