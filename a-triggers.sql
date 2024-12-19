@@ -30,14 +30,7 @@ DROP TRIGGER sinc_prestamo;
 CREATE TRIGGER sinc_prestamo AFTER
    INSERT ON prestamo
    FOR EACH ROW
-DECLARE
-   v_region VARCHAR(2);
 BEGIN
-   SELECT region
-     INTO v_region
-     FROM global_sucursal
-    WHERE idsucursal = :new.idsucursal;
-
    IF :new.is_replicated = 0 THEN
       dbms_output.put_line('Replicado en la region B');
       INSERT INTO prestamo_b (
